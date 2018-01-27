@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+            http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd
+            http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd"
+	default-lazy-init="true" default-autowire="byName">  
+	
+	      
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+	  <property name="driverClassName" value="oracle.jdbc.driver.OracleDriver"/>
+      <property name="url" value="jdbc:oracle:thin:@10.68.66.112:1522:CTI"/>
+      <property name="username" value="michelle"/>
+      <property name="password" value="apcti99"/>
+      <property name="initialSize" value="10" />
+      <property name="maxActive" value="30" />
+      <property name="accessToUnderlyingConnectionAllowed" value="true" />
+	</bean>
+	
+	<!--
+	<bean id="dataSource" class="org.springframework.jndi.JndiObjectFactoryBean">
+             <property name="jndiName">
+                     <value>MichelleDB_FET</value>
+             </property>
+             <property name="jndiTemplate">
+                     <ref bean="webLogicJndiTemplate" />
+             </property>
+             <property name="exposeAccessContext" value="true" />
+     </bean>
+     -->   
+     <bean id="webLogicJndiTemplate" class="org.springframework.jndi.JndiTemplate">
+         <property name="environment">
+             <props>
+                 <prop key="java.naming.factory.initial">weblogic.jndi.WLInitialContextFactory</prop>
+                 <prop key="java.naming.provider.url">t3://10.68.57.13:9701</prop>
+                 <prop key="java.naming.security.principal">weblogic</prop>
+                 <prop key="java.naming.security.credentials">wls10admin</prop>
+             </props>
+         </property>
+     </bean>
+	
+	
+	<!--WM JdbcTemplate -->
+    <bean id="wmJdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <property name="dataSource">
+            <ref bean="dataSource"/>
+        </property>
+    </bean>
+	<!--  	
+	<bean id="nativeJdbcExtractor" class="org.springframework.jdbc.support.nativejdbc.WebLogicNativeJdbcExtractor">
+	</bean>
+	-->
+	<!--  
+	<bean id="lobHandler" class="org.springframework.jdbc.support.lob.OracleLobHandler">
+        <property name="nativeJdbcExtractor" ref="nativeJdbcExtractor"/>
+    </bean>
+    -->
+    <bean id="emsTaskDao" class="com.fet.mdm.dao.impl.EmsTaskDaoImpl"> 
+	  <property name="wmJdbcTemplate" ref="wmJdbcTemplate" />
+	  <!--  
+	  <property name="lobHandler" ref="lobHandler" />
+	  -->
+	</bean>
+	 
+	<bean id="invoiceListener" class="com.fet.mdm.service.EmsQueueListener" />
+	 
+	<!-- MDM EMS Queue connection info --> 
+	<bean id="jndiTemplate" class="org.springframework.jndi.JndiTemplate">
+		<property name="environment">
+		 <props>
+		   <prop key="java.naming.factory.initial">com.tibco.tibjms.naming.TibjmsInitialContextFactory</prop>
+		   <prop key="java.naming.provider.url">tcp://10.68.57.189:18922</prop>
+		   <prop key="java.naming.security.principal">wm</prop>
+		   <prop key="java.naming.security.credentials">wm18922</prop>
+		 </props>
+		</property>
+	</bean>
+	
+	<!-- MDM EMS Queue factory name --> 
+	<bean id="queueConnectionFactory" class="org.springframework.jndi.JndiObjectFactoryBean">
+		<property name="jndiTemplate">
+		 <ref bean="jndiTemplate" />
+		</property>
+		<property name="jndiName">
+		 <value>QueueConnectionFactory</value>
+		</property>
+	</bean>
+	
+	<!-- MDM EMS Queue connection info must wrap -->
+	<bean id="authenticationConnectionFactory" class="org.springframework.jms.connection.UserCredentialsConnectionFactoryAdapter">
+	    <property name="targetConnectionFactory" ref="queueConnectionFactory" />
+	    <property name="username" value="wm" />
+	    <property name="password" value="wm18922" />
+	</bean>
+	
+	<!-- MDM EMS Queue name -->  
+	<bean id="invoiceQueue" class="org.springframework.jndi.JndiObjectFactoryBean">
+		 <property name="jndiTemplate">
+		   <ref bean="jndiTemplate" />
+		 </property>
+		 <property name="jndiName">
+		   <value>com.fet.esb.domain.crm.cie.cie2cti</value>
+		 </property>
+	</bean>
+	 
+	<bean id="jmsDestinationResolver" class="org.springframework.jms.support.destination.JndiDestinationResolver">
+		<property name="jndiTemplate">
+		 <ref bean="jndiTemplate" />
+		</property>
+		<property name="cache">
+		 <value>true</value>
+		</property>
+	</bean>
+	 
+	<bean id="invoiceQueueTemplate" class="org.springframework.jms.core.JmsTemplate">
+		<property name="connectionFactory">
+		 <ref bean="authenticationConnectionFactory" />
+		</property>
+		<property name="destinationResolver">
+		 <ref bean="jmsDestinationResolver" />
+		</property>
+		<property name="sessionAcknowledgeModeName" value="AUTO_ACKNOWLEDGE" />
+	</bean>
+	
+	   
+	<bean id="jmsInvoiceSender" class="com.fet.mdm.service.InvoiceQueueSender">
+		<property name="jmsTemplate">
+		 <ref bean="invoiceQueueTemplate" />
+		</property>
+	</bean>
+	
+	<bean id="Invoicelistener" class="org.springframework.jms.listener.DefaultMessageListenerContainer">
+	    <property name="concurrentConsumers" value="5" />
+	    <property name="connectionFactory" ref="authenticationConnectionFactory" />
+	    <property name="destination" ref="invoiceQueue" />
+	    <property name="sessionAcknowledgeModeName" value="AUTO_ACKNOWLEDGE" />
+	    <property name="messageListener" ref="invoiceListener" />
+	    <property name="sessionTransacted" value="true" />
+	</bean>
+	
+	
+</beans>

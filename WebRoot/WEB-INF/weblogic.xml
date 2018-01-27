@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<weblogic-web-app xmlns="http://www.bea.com/ns/weblogic/90" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<session-descriptor>
+		<cookie-http-only>false</cookie-http-only>
+		<cookie-name>JSESSIONID_PORTAL</cookie-name>
+	</session-descriptor> 
+	<jsp-descriptor></jsp-descriptor>
+	<container-descriptor></container-descriptor>
+	<context-root>/ems_queue</context-root>
+</weblogic-web-app>
